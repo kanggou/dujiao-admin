@@ -23,7 +23,7 @@ const tabs = [
   { key: 'help' as TabKey, label: '帮助中心', icon: ScrollText, desc: '自助说明、订单帮助与客服入口' },
   { key: 'menu' as TabKey, label: '菜单设置', icon: ListOrdered, desc: '内置指令菜单与自定义跳转' },
   { key: 'texts' as TabKey, label: '全部词条', icon: Type, desc: '逐条设置 Bot 所有交互文案（按分组与搜索）' },
-  { key: 'flow' as TabKey, label: '流程浏览', icon: Workflow, desc: '查看每个面板按钮点击后的交互流程' },
+  { key: 'flow' as TabKey, label: '流程浏览', icon: Workflow, desc: '查看并直接编辑每个面板按钮点击后各步骤的文案' },
 ]
 const activeTab = ref<TabKey>('panel')
 
@@ -129,13 +129,38 @@ const filteredTextEntries = computed(() => {
 
 // ===== 流程浏览：每个面板入口按钮点击后的交互步骤 =====
 // label 取自当前语言下用户配置的按钮/文案，跟随实时编辑变化。
+interface FlowEdit {
+  label: string                 // 字段中文名
+  kind: 'panel' | 'text'        // panel=面板按钮文案字段；text=interaction_texts 词条
+  key: string                   // panel 字段名 或 interaction_texts 的 key
+  multiline?: boolean
+}
 interface FlowStep {
   label: string        // 步骤标题（用户看到的界面）
   detail: string       // 这一步展示/发生了什么
   actions?: string[]   // 该步骤里用户可点的下一步（按钮/选项）
+  edits?: FlowEdit[]   // 该步骤可在此处直接编辑的文案字段
 }
 const t = (obj: Record<string, string>, fallback: string) =>
   (obj?.[currentLang.value] || obj?.['en-US'] || fallback).trim() || fallback
+
+// 读取/写入某个流程字段在当前语言下的值
+const flowEditValue = (e: FlowEdit): string => {
+  if (e.kind === 'panel') {
+    const obj = (form.value.panel as unknown as Record<string, Record<string, string>>)[e.key]
+    return obj?.[currentLang.value] ?? ''
+  }
+  return form.value.panel.interaction_texts[e.key]?.[currentLang.value] ?? ''
+}
+const setFlowEditValue = (e: FlowEdit, val: string) => {
+  if (e.kind === 'panel') {
+    const panelObj = form.value.panel as unknown as Record<string, Record<string, string>>
+    if (!panelObj[e.key]) panelObj[e.key] = { 'en-US': '', 'zh-TW': '', 'es-ES': '' }
+    panelObj[e.key]![currentLang.value] = val
+  } else {
+    ensureText(e.key)[currentLang.value] = val
+  }
+}
 
 const flows = computed<{ key: string; entry: string; color: string; steps: FlowStep[] }[]>(() => {
   const p = form.value.panel
@@ -144,52 +169,52 @@ const flows = computed<{ key: string; entry: string; color: string; steps: FlowS
       key: 'shop', color: 'bg-primary text-primary-foreground',
       entry: t(p.shop_button_label, '🛒 购买商品'),
       steps: [
-        { label: t(p.shop_button_label, '🛒 购买商品'), detail: '用户在频道面板点击「购买商品」入口。', actions: [t(p.interaction_texts?.product_select_placeholder || {}, '选择商品')] },
-        { label: t(p.interaction_texts?.product_list_title || {}, '🛍️ 商品列表'), detail: '私密展示分页商品列表，每页 8 个，可翻页或下拉选择商品。', actions: [t(p.interaction_texts?.prev_page_button || {}, '上一页'), t(p.interaction_texts?.next_page_button || {}, '下一页'), '选择某个商品'] },
-        { label: '商品详情', detail: '展示所选商品标题、价格、库存与简介；有多规格时出现规格下拉。', actions: [t(p.interaction_texts?.sku_select_placeholder || {}, '选择规格'), t(p.interaction_texts?.buy_quantity_button || {}, '填写数量购买'), t(p.interaction_texts?.back_product_list_button || {}, '返回商品列表')] },
-        { label: t(p.interaction_texts?.quantity_modal_title || {}, '购买数量'), detail: '弹出数量输入弹窗，提交后创建订单并返回支付渠道按钮。', actions: ['选择支付渠道'] },
-        { label: '订单已创建 / 支付', detail: '展示订单号与支付链接按钮；支付成功后通过私信发送发货内容。', actions: ['查询订单状态'] },
+        { label: t(p.shop_button_label, '🛒 购买商品'), detail: '用户在频道面板点击「购买商品」入口。', actions: [t(p.interaction_texts?.product_select_placeholder || {}, '选择商品')], edits: [{ label: '购买商品按钮', kind: 'panel', key: 'shop_button_label' }, { label: '商品下拉占位', kind: 'text', key: 'product_select_placeholder' }] },
+        { label: t(p.interaction_texts?.product_list_title || {}, '🛍️ 商品列表'), detail: '私密展示分页商品列表，每页 8 个，可翻页或下拉选择商品。', actions: [t(p.interaction_texts?.prev_page_button || {}, '上一页'), t(p.interaction_texts?.next_page_button || {}, '下一页'), '选择某个商品'], edits: [{ label: '商品列表标题', kind: 'text', key: 'product_list_title' }, { label: '商品列表选择提示', kind: 'text', key: 'product_list_choose' }, { label: '商品为空提示', kind: 'text', key: 'product_list_empty' }, { label: '上一页按钮', kind: 'text', key: 'prev_page_button' }, { label: '下一页按钮', kind: 'text', key: 'next_page_button' }] },
+        { label: '商品详情', detail: '展示所选商品标题、价格、库存与简介；有多规格时出现规格下拉。', actions: [t(p.interaction_texts?.sku_select_placeholder || {}, '选择规格'), t(p.interaction_texts?.buy_quantity_button || {}, '填写数量购买'), t(p.interaction_texts?.back_product_list_button || {}, '返回商品列表')], edits: [{ label: '规格下拉占位', kind: 'text', key: 'sku_select_placeholder' }, { label: '填写数量购买按钮', kind: 'text', key: 'buy_quantity_button' }, { label: '返回商品列表按钮', kind: 'text', key: 'back_product_list_button' }] },
+        { label: t(p.interaction_texts?.quantity_modal_title || {}, '购买数量'), detail: '弹出数量输入弹窗，提交后创建订单并返回支付渠道按钮。', actions: ['选择支付渠道'], edits: [{ label: '数量弹窗标题', kind: 'text', key: 'quantity_modal_title' }, { label: '数量输入框标题', kind: 'text', key: 'quantity_modal_label' }] },
+        { label: '订单已创建 / 支付', detail: '展示订单号与支付链接按钮；支付成功后通过私信发送发货内容。', actions: ['查询订单状态'], edits: [{ label: '订单查询按钮', kind: 'text', key: 'order_lookup_button' }] },
       ],
     },
     {
       key: 'order', color: 'bg-secondary text-secondary-foreground',
       entry: t(p.order_button_label, '📦 我的订单'),
       steps: [
-        { label: t(p.order_button_label, '📦 我的订单'), detail: '用户点击「我的订单」入口。', actions: ['未绑定 → 提示绑定', '已绑定 → 订单列表'] },
-        { label: t(p.interaction_texts?.order_modal_title || {}, '订单查询'), detail: '也可通过订单号弹窗精确查询：输入订单号后展示该订单。', actions: [t(p.interaction_texts?.order_lookup_button || {}, '查询订单')] },
-        { label: '订单列表 / 详情', detail: '展示订单状态、金额、时间；可下拉选择某订单查看交付内容。', actions: ['选择订单', '刷新状态'] },
+        { label: t(p.order_button_label, '📦 我的订单'), detail: '用户点击「我的订单」入口。', actions: ['未绑定 → 提示绑定', '已绑定 → 订单列表'], edits: [{ label: '我的订单按钮', kind: 'panel', key: 'order_button_label' }, { label: '未绑定账号提示', kind: 'text', key: 'profile_required', multiline: true }] },
+        { label: t(p.interaction_texts?.order_modal_title || {}, '订单查询'), detail: '也可通过订单号弹窗精确查询：输入订单号后展示该订单。', actions: [t(p.interaction_texts?.order_lookup_button || {}, '查询订单')], edits: [{ label: '订单查询弹窗标题', kind: 'text', key: 'order_modal_title' }, { label: '订单号输入框标题', kind: 'text', key: 'order_modal_label' }, { label: '订单号输入框提示', kind: 'text', key: 'order_modal_placeholder' }, { label: '查询订单按钮', kind: 'text', key: 'order_lookup_button' }] },
+        { label: '订单列表 / 详情', detail: '展示订单状态、金额、时间；可下拉选择某订单查看交付内容。', actions: ['选择订单', '刷新状态'], edits: [{ label: '发货内容标题', kind: 'text', key: 'delivery_title' }, { label: '发货说明', kind: 'text', key: 'delivery_instructions' }] },
       ],
     },
     {
       key: 'account', color: 'bg-secondary text-secondary-foreground',
       entry: t(p.account_button_label, '👤 账号设置'),
       steps: [
-        { label: t(p.account_button_label, '👤 账号设置'), detail: '展示当前绑定的邮箱与查询密码状态。', actions: [t(p.interaction_texts?.profile_edit_button || {}, '修改邮箱密码'), t(p.interaction_texts?.profile_language_button || {}, '语言')] },
-        { label: '编辑资料弹窗', detail: '弹出邮箱 + 查询密码输入弹窗，提交后保存到账号。', actions: ['保存'] },
+        { label: t(p.account_button_label, '👤 账号设置'), detail: '展示当前绑定的邮箱与查询密码状态。', actions: [t(p.interaction_texts?.profile_edit_button || {}, '修改邮箱密码'), t(p.interaction_texts?.profile_language_button || {}, '语言')], edits: [{ label: '账号设置按钮', kind: 'panel', key: 'account_button_label' }, { label: '修改邮箱密码按钮', kind: 'text', key: 'profile_edit_button' }, { label: '账号页语言按钮', kind: 'text', key: 'profile_language_button' }] },
+        { label: '编辑资料弹窗', detail: '弹出邮箱 + 查询密码输入弹窗，提交后保存到账号。', actions: ['保存'], edits: [{ label: '资料弹窗标题', kind: 'text', key: 'profile_modal_title' }, { label: '邮箱字段标题', kind: 'text', key: 'profile_email_label' }, { label: '查询密码字段标题', kind: 'text', key: 'profile_password_label' }] },
       ],
     },
     {
       key: 'wallet', color: 'bg-green-600 text-white',
       entry: t(p.wallet_button_label, '💰 钱包充值'),
       steps: [
-        { label: t(p.wallet_button_label, '💰 钱包充值'), detail: '展示钱包余额与快捷充值金额按钮。', actions: ['充值 10 / 50 / 100', t(p.interaction_texts?.wallet_recharge_title || {}, '自定义金额'), '刷新余额'] },
-        { label: '充值弹窗 / 渠道', detail: '选择或输入金额后创建充值单并返回支付渠道。', actions: ['选择支付渠道'] },
-        { label: '充值成功', detail: '支付成功后通过私信或通知频道发送到账提醒。' },
+        { label: t(p.wallet_button_label, '💰 钱包充值'), detail: '展示钱包余额与快捷充值金额按钮。', actions: ['充值 10 / 50 / 100', t(p.interaction_texts?.wallet_recharge_title || {}, '自定义金额'), '刷新余额'], edits: [{ label: '钱包充值按钮', kind: 'panel', key: 'wallet_button_label' }, { label: '钱包标题', kind: 'text', key: 'wallet_title' }, { label: '自定义金额按钮', kind: 'text', key: 'btn_custom_amount' }, { label: '刷新余额按钮', kind: 'text', key: 'btn_refresh_balance' }] },
+        { label: '充值弹窗 / 渠道', detail: '选择或输入金额后创建充值单并返回支付渠道。', actions: ['选择支付渠道'], edits: [{ label: '充值弹窗标题', kind: 'text', key: 'wallet_recharge_title' }, { label: '充值金额输入提示', kind: 'text', key: 'wallet_enter_amount' }] },
+        { label: '充值成功', detail: '支付成功后通过私信或通知频道发送到账提醒。', edits: [{ label: '充值成功标题', kind: 'text', key: 'wallet_recharge_success_title' }] },
       ],
     },
     {
       key: 'help', color: 'bg-secondary text-secondary-foreground',
       entry: t(p.help_button_label, '💬 帮助客服'),
       steps: [
-        { label: t(p.help_button_label, '💬 帮助客服'), detail: '展示「帮助中心」Tab 配置的标题、开场说明与帮助条目。', actions: ['查看帮助条目', '客服链接'] },
+        { label: t(p.help_button_label, '💬 帮助客服'), detail: '展示「帮助中心」Tab 配置的标题、开场说明与帮助条目。', actions: ['查看帮助条目', '客服链接'], edits: [{ label: '帮助客服按钮', kind: 'panel', key: 'help_button_label' }, { label: '帮助标题', kind: 'text', key: 'help_title' }] },
       ],
     },
     {
       key: 'language', color: 'bg-secondary text-secondary-foreground',
       entry: t(p.language_button_label, '🌐 语言选择'),
       steps: [
-        { label: t(p.language_button_label, '🌐 语言选择'), detail: '展示语言下拉，可选语言由「交互模板」里勾选的语言决定。', actions: [t(p.interaction_texts?.language_placeholder || {}, '选择语言')] },
-        { label: '语言已更新', detail: '保存所选语言到账号（需先绑定账号），之后界面按新语言展示。' },
+        { label: t(p.language_button_label, '🌐 语言选择'), detail: '展示语言下拉，可选语言由「交互模板」里勾选的语言决定。', actions: [t(p.interaction_texts?.language_placeholder || {}, '选择语言')], edits: [{ label: '语言选择按钮', kind: 'panel', key: 'language_button_label' }, { label: '语言设置标题', kind: 'text', key: 'language_title' }, { label: '语言下拉占位', kind: 'text', key: 'language_placeholder' }] },
+        { label: '语言已更新', detail: '保存所选语言到账号（需先绑定账号），之后界面按新语言展示。', edits: [{ label: '语言已更新提示', kind: 'text', key: 'language_updated' }] },
       ],
     },
   ]
@@ -227,7 +252,7 @@ const currentStep = computed(() => currentFlow.value?.steps[activeStep.value])
         <Button v-if="activeTab === 'panel'" variant="outline" :disabled="saving || loading" @click="resetPanelTemplate">
           <RotateCcw class="mr-2 h-4 w-4" />恢复默认
         </Button>
-        <Button v-if="activeTab !== 'flow'" :disabled="saving || loading" @click="saveConfig">
+        <Button :disabled="saving || loading" @click="saveConfig">
           <Loader2 v-if="saving" class="mr-2 h-4 w-4 animate-spin" />
           <Save v-else class="mr-2 h-4 w-4" />保存
         </Button>
@@ -571,7 +596,7 @@ const currentStep = computed(() => currentFlow.value?.steps[activeStep.value])
     <!-- ===== 流程浏览 ===== -->
     <div v-show="activeTab === 'flow'" class="space-y-4">
       <p class="text-sm text-muted-foreground">
-        选择一个面板入口，查看用户点击后会经历的交互步骤。按钮名称取自当前语言（{{ currentLang }}）下你配置的文案，编辑后实时同步。
+        选择一个面板入口查看交互步骤，并可在每一步直接编辑该步骤的按钮/提示文案（当前语言 {{ currentLang }}）。改完点顶部「保存」即可。
       </p>
       <div class="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
         <!-- 入口列表：每个入口可展开成子选项（步骤），点子选项看对应功能 -->
@@ -618,6 +643,28 @@ const currentStep = computed(() => currentFlow.value?.steps[activeStep.value])
             <div>
               <div class="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">功能说明</div>
               <p class="text-sm leading-relaxed">{{ currentStep.detail }}</p>
+            </div>
+            <div v-if="currentStep.edits?.length">
+              <div class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                ✏️ 编辑此步文案 <span class="rounded bg-muted px-1.5 text-[11px] normal-case">{{ currentLang }}</span>
+              </div>
+              <div class="space-y-3">
+                <div v-for="(ed, ei) in currentStep.edits" :key="ei" class="space-y-1">
+                  <Label class="text-xs">{{ ed.label }}</Label>
+                  <Textarea
+                    v-if="ed.multiline"
+                    :model-value="flowEditValue(ed)"
+                    rows="3"
+                    @update:model-value="(v: string | number) => setFlowEditValue(ed, String(v))"
+                  />
+                  <Input
+                    v-else
+                    :model-value="flowEditValue(ed)"
+                    @update:model-value="(v: string | number) => setFlowEditValue(ed, String(v))"
+                  />
+                </div>
+              </div>
+              <p class="mt-2 text-xs text-muted-foreground">改完点页面顶部「保存」生效。</p>
             </div>
             <div v-if="currentStep.actions?.length">
               <div class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
