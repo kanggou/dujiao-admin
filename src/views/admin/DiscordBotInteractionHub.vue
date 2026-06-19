@@ -69,6 +69,42 @@ const previewText = computed(() => {
 
 onMounted(fetchConfig)
 
+// ===== 面板外观:分区显示开关 + 排序 =====
+const sectionLabels: Record<string, string> = {
+  title: '面板标题',
+  intro: '开场说明',
+  shop: '快速入口',
+  important: '重要提示',
+}
+const sectionShowKey: Record<string, 'show_title' | 'show_intro' | 'show_shop' | 'show_important'> = {
+  title: 'show_title',
+  intro: 'show_intro',
+  shop: 'show_shop',
+  important: 'show_important',
+}
+const sectionShow = computed(() => {
+  const ap = form.value.panel_appearance
+  return {
+    get title() { return ap.show_title }, set title(v: boolean) { ap.show_title = v },
+    get intro() { return ap.show_intro }, set intro(v: boolean) { ap.show_intro = v },
+    get shop() { return ap.show_shop }, set shop(v: boolean) { ap.show_shop = v },
+    get important() { return ap.show_important }, set important(v: boolean) { ap.show_important = v },
+  } as Record<string, boolean>
+})
+void sectionShowKey
+const moveSection = (idx: number, dir: number) => {
+  const arr = form.value.panel_appearance.section_order
+  const target = idx + dir
+  if (target < 0 || target >= arr.length) return
+  const next = [...arr]
+  const a = next[idx]
+  const b = next[target]
+  if (a === undefined || b === undefined) return
+  next[idx] = b
+  next[target] = a
+  form.value.panel_appearance.section_order = next
+}
+
 // ===== 全部词条：逐条设置 bot 所有交互文案 =====
 const textSearch = ref('')
 const textGroup = ref<string>('全部')
@@ -265,6 +301,89 @@ const currentStep = computed(() => currentFlow.value?.steps[activeStep.value])
         </CardContent>
       </Card>
       <!-- PLACEHOLDER_PANEL_CONTENT -->
+      <Card>
+        <CardHeader>
+          <CardTitle>面板外观</CardTitle>
+          <CardDescription>在 Discord 排版能力内自定义面板样式。注意：Discord 不支持真实字号/字体，标题样式用 Markdown 模拟层级。</CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div class="space-y-2">
+              <Label>渲染模式</Label>
+              <Select v-model="form.panel_appearance.render_mode">
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text">纯文本</SelectItem>
+                  <SelectItem value="embed">Embed 卡片</SelectItem>
+                  <SelectItem value="v2">Components V2</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div class="space-y-2">
+              <Label>主题色（卡片色条）</Label>
+              <div class="flex items-center gap-2">
+                <input type="color" v-model="form.panel_appearance.theme_color" class="h-9 w-12 cursor-pointer rounded border" />
+                <Input v-model="form.panel_appearance.theme_color" placeholder="#5865F2" />
+              </div>
+            </div>
+            <div class="space-y-2">
+              <Label>标题样式（模拟字号）</Label>
+              <Select v-model="form.panel_appearance.title_style">
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="h1"># 大标题</SelectItem>
+                  <SelectItem value="h2">## 中标题</SelectItem>
+                  <SelectItem value="bold">**粗体**</SelectItem>
+                  <SelectItem value="plain">普通</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div class="space-y-2">
+              <Label>分隔线</Label>
+              <Select v-model="form.panel_appearance.divider_style">
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="line">───</SelectItem>
+                  <SelectItem value="v2">V2 分隔线</SelectItem>
+                  <SelectItem value="none">无</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <!-- PLACEHOLDER_APPEARANCE_SECTIONS -->
+          <div class="space-y-2">
+            <Label>分区显示与顺序</Label>
+            <p class="text-xs text-muted-foreground">勾选要显示的分区，用箭头调整在面板中的先后顺序。</p>
+            <div class="space-y-2">
+              <div
+                v-for="(key, idx) in form.panel_appearance.section_order"
+                :key="key"
+                class="flex items-center justify-between rounded-lg border p-3"
+              >
+                <label class="flex items-center gap-3 text-sm">
+                  <input type="checkbox" v-model="sectionShow[key]" class="h-4 w-4 rounded border-gray-300" />
+                  <span>{{ sectionLabels[key] || key }}</span>
+                </label>
+                <div class="flex gap-2">
+                  <Button size="sm" variant="outline" :disabled="idx === 0" @click="moveSection(idx, -1)">↑</Button>
+                  <Button size="sm" variant="outline" :disabled="idx === form.panel_appearance.section_order.length - 1" @click="moveSection(idx, 1)">↓</Button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-if="form.panel_appearance.render_mode === 'embed'" class="grid gap-4 md:grid-cols-2">
+            <label class="flex items-center gap-3 rounded-lg border p-3 text-sm">
+              <input type="checkbox" v-model="form.panel_appearance.show_thumbnail" class="h-4 w-4 rounded border-gray-300" />
+              <span>显示缩略图（用欢迎封面）</span>
+            </label>
+            <div class="space-y-2">
+              <Label>页脚文字 <span class="ml-1 rounded bg-muted px-1.5 text-xs text-muted-foreground">{{ currentLang }}</span></Label>
+              <Input v-model="form.panel_appearance.footer_text[currentLang]" placeholder="如：Powered by Dujiao" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div class="space-y-6">
           <Card>

@@ -92,6 +92,19 @@ interface DiscordBotSettingsForm {
     panel_channel_id: string
     public_site_url: string
   }
+  panel_appearance: {
+    render_mode: 'text' | 'embed' | 'v2'
+    theme_color: string
+    title_style: 'plain' | 'h1' | 'h2' | 'bold'
+    divider_style: 'none' | 'line' | 'v2'
+    section_order: string[]
+    show_title: boolean
+    show_intro: boolean
+    show_shop: boolean
+    show_important: boolean
+    show_thumbnail: boolean
+    footer_text: LocalizedText
+  }
 }
 
 const menuActionTypes: MenuActionType[] = ['builtin', 'url', 'web_app', 'command']
@@ -220,6 +233,19 @@ const createDiscordBotSettingsForm = (): DiscordBotSettingsForm => ({
     notify_channel_id: '',
     panel_channel_id: '',
     public_site_url: '',
+  },
+  panel_appearance: {
+    render_mode: 'text',
+    theme_color: '#5865F2',
+    title_style: 'bold',
+    divider_style: 'line',
+    section_order: ['title', 'intro', 'shop', 'important'],
+    show_title: true,
+    show_intro: true,
+    show_shop: true,
+    show_important: true,
+    show_thumbnail: false,
+    footer_text: emptyLocalized(),
   },
 })
 
@@ -386,6 +412,27 @@ export function useDiscordBotSettings() {
           notify_channel_id: (cb.notify_channel_id as string) ?? '',
           panel_channel_id: (cb.panel_channel_id as string) ?? '',
           public_site_url: (cb.public_site_url as string) ?? '',
+        }
+      }
+
+      const ap = data.panel_appearance as Record<string, unknown> | undefined
+      if (ap) {
+        const def = form.value.panel_appearance
+        const order = Array.isArray(ap.section_order)
+          ? (ap.section_order as unknown[]).filter((s): s is string => typeof s === 'string')
+          : def.section_order
+        form.value.panel_appearance = {
+          render_mode: (ap.render_mode as 'text' | 'embed' | 'v2') || def.render_mode,
+          theme_color: (ap.theme_color as string) || def.theme_color,
+          title_style: (ap.title_style as 'plain' | 'h1' | 'h2' | 'bold') || def.title_style,
+          divider_style: (ap.divider_style as 'none' | 'line' | 'v2') || def.divider_style,
+          section_order: order.length ? order : def.section_order,
+          show_title: (ap.show_title as boolean) ?? def.show_title,
+          show_intro: (ap.show_intro as boolean) ?? def.show_intro,
+          show_shop: (ap.show_shop as boolean) ?? def.show_shop,
+          show_important: (ap.show_important as boolean) ?? def.show_important,
+          show_thumbnail: (ap.show_thumbnail as boolean) ?? def.show_thumbnail,
+          footer_text: parseLocalized(ap.footer_text),
         }
       }
     } catch {
