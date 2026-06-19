@@ -2,7 +2,7 @@
 import { onMounted, computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
-import type { AdminMemberLevel } from '@/api/types'
+import type { AdminMemberLevel, AdminPaymentChannel } from '@/api/types'
 import { getLocalizedText } from '@/utils/format'
 import MediaPicker from '@/components/admin/MediaPicker.vue'
 import { Button } from '@/components/ui/button'
@@ -31,6 +31,12 @@ const error = ref('')
 const showAdvanced = ref(false)
 const applyingChannelData = ref(false)
 const configJsonPlaceholder = '{ "key": "value" }'
+
+// Payssion 一键同步：从已有 Payssion 渠道复制共享基本信息
+const payssionSources = ref<AdminPaymentChannel[]>([])
+const payssionSyncId = ref<string>('')
+const payssionSyncLoading = ref(false)
+const payssionSyncMsg = ref('')
 
 const form = reactive({
   name: '',
@@ -791,6 +797,57 @@ const buildPayssionConfig = () => {
   return config
 }
 
+// --- Payssion 一键同步 ---
+
+// 拉取所有已有 Payssion 渠道（排除当前正在编辑的这个），作为复制来源
+const loadPayssionSources = async () => {
+  payssionSyncMsg.value = ''
+  payssionSyncLoading.value = true
+  try {
+    const res = await adminAPI.getPaymentChannels({ provider_type: 'payssion', page: 1, page_size: 100 })
+    const list = (res.data.data || []) as AdminPaymentChannel[]
+    payssionSources.value = list.filter((c) => c.id !== props.channelId)
+  } catch {
+    payssionSources.value = []
+  } finally {
+    payssionSyncLoading.value = false
+  }
+}
+
+// 把选中来源渠道的共享字段复制到当前表单（不含 pm_id / 货币设置）
+const applyPayssionSync = (sourceId: string) => {
+  payssionSyncMsg.value = ''
+  const id = Number(sourceId)
+  const source = payssionSources.value.find((c) => c.id === id)
+  if (!source || !source.config_json || typeof source.config_json !== 'object') {
+    payssionSyncMsg.value = t('admin.paymentChannels.modal.payssionSyncFailed')
+    return
+  }
+  const raw = source.config_json as Record<string, unknown>
+  payssionConfig.api_key = String(raw.api_key || '')
+  payssionConfig.secret_key = String(raw.secret_key || '')
+  payssionConfig.gateway_url = String(raw.gateway_url || 'https://www.payssion.com/api/v1/payment')
+  payssionConfig.notify_url = String(raw.notify_url || '')
+  payssionConfig.return_url = String(raw.return_url || '')
+  payssionSyncMsg.value = t('admin.paymentChannels.modal.payssionSyncDone')
+}
+
+watch(payssionSyncId, (id) => {
+  if (id) {
+    applyPayssionSync(id)
+  }
+})
+
+// 切到 payssion 时按需加载来源列表
+watch(
+  () => form.provider_type,
+  (value) => {
+    if (value === 'payssion' && payssionSources.value.length === 0) {
+      loadPayssionSources()
+    }
+  }
+)
+
 // --- Watchers for provider_type / channel_type ---
 
 watch(
@@ -871,6 +928,8 @@ function resetFormForCreate() {
   form.is_active = true
   form.sort_order = 10
   resetAllConfigs()
+  payssionSyncId.value = ''
+  payssionSyncMsg.value = ''
   applyingChannelData.value = false
 }
 
@@ -891,6 +950,8 @@ watch(
   async (id) => {
     error.value = ''
     showAdvanced.value = false
+    payssionSyncId.value = ''
+    payssionSyncMsg.value = ''
     if (id === null) {
       // Create mode: reset form
       resetFormForCreate()
@@ -1568,6 +1629,25 @@ const closeModal = () => {
 
         <div v-if="form.provider_type === 'payssion'" class="min-w-0 rounded-xl border border-border bg-muted/20 p-4 overflow-hidden">
           <div class="text-sm font-semibold text-foreground mb-3">Payssion</div>
+          <div class="mb-4 rounded-lg border border-dashed border-border bg-background/40 p-3">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Select v-model="payssionSyncId" :disabled="payssionSources.length === 0">
+                <SelectTrigger class="h-9 w-full sm:max-w-xs">
+                  <SelectValue :placeholder="payssionSources.length === 0 ? t('admin.paymentChannels.modal.payssionSyncEmpty') : t('admin.paymentChannels.modal.payssionSyncSelectPlaceholder')" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="src in payssionSources" :key="src.id" :value="String(src.id)">
+                    {{ src.name }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="outline" size="sm" :disabled="payssionSyncLoading" @click="loadPayssionSources">
+                {{ t('admin.paymentChannels.modal.payssionSyncButton') }}
+              </Button>
+            </div>
+            <div class="mt-2 text-xs text-muted-foreground">{{ t('admin.paymentChannels.modal.payssionSyncHint') }}</div>
+            <div v-if="payssionSyncMsg" class="mt-1 text-xs text-primary">{{ payssionSyncMsg }}</div>
+          </div>
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2 [&>*]:min-w-0">
             <div class="min-w-0">
               <label class="block text-xs font-medium text-muted-foreground mb-1.5">API Key</label>
