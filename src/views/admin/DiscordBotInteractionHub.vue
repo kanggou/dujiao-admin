@@ -303,8 +303,8 @@ const currentStep = computed(() => currentFlow.value?.steps[activeStep.value])
       <!-- PLACEHOLDER_PANEL_CONTENT -->
       <Card>
         <CardHeader>
-          <CardTitle>面板外观</CardTitle>
-          <CardDescription>在 Discord 排版能力内自定义面板样式。注意：Discord 不支持真实字号/字体，标题样式用 Markdown 模拟层级。</CardDescription>
+          <CardTitle>面板与菜单外观</CardTitle>
+          <CardDescription>统一控制 Bot 所有页面(启动面板、商品列表、订单、账号、钱包、帮助等)的样式。Embed 模式会把每个页面包成主题色卡片;V2 模式仅启动面板生效,其余菜单页按 Embed 呈现。注意:Discord 不支持真实字号/字体,标题样式用 Markdown 模拟层级。</CardDescription>
         </CardHeader>
         <CardContent class="space-y-4">
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
