@@ -46,6 +46,20 @@ onMounted(fetchConfig)
     </Card>
 
     <Card>
+      <CardHeader>
+        <CardTitle>频道绑定</CardTitle>
+        <CardDescription>填写 Discord 服务器与频道 ID（纯数字）。除「服务器 ID」改动需重启 Bot 重新注册命令外，其余保存后下次同步即时生效。留空则使用默认/不限制。</CardDescription>
+      </CardHeader>
+      <CardContent class="grid gap-4 md:grid-cols-2">
+        <div class="space-y-2"><Label>服务器 ID（Guild ID）</Label><Input v-model="form.channel_binding.guild_id" placeholder="留空=全局注册斜杠命令" /><p class="text-xs text-muted-foreground">改动需重启 Bot 生效</p></div>
+        <div class="space-y-2"><Label>限制可用频道 ID</Label><Input v-model="form.channel_binding.channel_id" placeholder="留空=不限制频道" /></div>
+        <div class="space-y-2"><Label>通知频道 ID</Label><Input v-model="form.channel_binding.notify_channel_id" placeholder="私信失败时发到此频道" /></div>
+        <div class="space-y-2"><Label>面板发布频道 ID</Label><Input v-model="form.channel_binding.panel_channel_id" placeholder="留空=用限制频道" /></div>
+        <div class="space-y-2 md:col-span-2"><Label>前台站点地址（可选）</Label><Input v-model="form.channel_binding.public_site_url" placeholder="https://your-site，用于消息中的跳转链接" /></div>
+      </CardContent>
+    </Card>
+
+    <Card>
       <CardHeader><CardTitle>欢迎消息 <span class="ml-2 rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{{ currentLang }}</span></CardTitle><CardDescription>用户首次使用或执行帮助命令时可展示。</CardDescription></CardHeader>
       <CardContent class="space-y-4">
         <div class="flex items-center gap-3 rounded-lg border p-4"><Switch v-model="form.welcome.enabled" id="discord-welcome" /><Label for="discord-welcome">启用欢迎消息</Label></div>

@@ -85,6 +85,13 @@ interface DiscordBotSettingsForm {
     items: MenuItem[]
   }
   panel: PanelTemplate
+  channel_binding: {
+    guild_id: string
+    channel_id: string
+    notify_channel_id: string
+    panel_channel_id: string
+    public_site_url: string
+  }
 }
 
 const menuActionTypes: MenuActionType[] = ['builtin', 'url', 'web_app', 'command']
@@ -207,6 +214,13 @@ const createDiscordBotSettingsForm = (): DiscordBotSettingsForm => ({
     items: [],
   },
   panel: createPanelTemplate(),
+  channel_binding: {
+    guild_id: '',
+    channel_id: '',
+    notify_channel_id: '',
+    panel_channel_id: '',
+    public_site_url: '',
+  },
 })
 
 const parseLocalized = (raw: unknown, fallback: LocalizedText = emptyLocalized()): LocalizedText => {
@@ -363,6 +377,17 @@ export function useDiscordBotSettings() {
       }
 
       form.value.panel = parsePanelTemplate(data.panel)
+
+      const cb = data.channel_binding as Record<string, unknown> | undefined
+      if (cb) {
+        form.value.channel_binding = {
+          guild_id: (cb.guild_id as string) ?? '',
+          channel_id: (cb.channel_id as string) ?? '',
+          notify_channel_id: (cb.notify_channel_id as string) ?? '',
+          panel_channel_id: (cb.panel_channel_id as string) ?? '',
+          public_site_url: (cb.public_site_url as string) ?? '',
+        }
+      }
     } catch {
       notifyError(t('discordBot.settings.loadFailed'))
     } finally {
